@@ -1,6 +1,6 @@
 # Assets Folder
 
-Drop generated PNG files into these paths so the game can load them automatically.
+The game loads its image and audio assets from these paths.
 
 ## Required Files
 
@@ -55,4 +55,4 @@ Drop generated PNG files into these paths so the game can load them automaticall
 - `audio/portal.wav`
 - `audio/win.wav`
 
-The game will still run if some files are missing. Missing assets fall back to the current placeholder drawing.
+The game includes code fallbacks for missing image assets, but the listed files should be included in the final submission.
