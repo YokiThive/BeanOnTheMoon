@@ -59,9 +59,6 @@ class AudioManager:
                 if path.exists():
                     self.music_files[level] = path
                     break
-        fallback = AUDIO_DIR / "ambient_loop.wav"
-        if fallback.exists():
-            self.music_files.setdefault("hub", fallback)
 
     def play_music(self, level: str) -> None:
         if not self.enabled:
