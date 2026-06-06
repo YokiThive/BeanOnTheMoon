@@ -6,6 +6,7 @@ import time
 import pygame
 
 from assets import AssetLibrary
+from audio import AudioManager
 from camera import Camera
 from data import LEVEL_TEMPLATES, PORTAL_DESTINATIONS
 from effects import EffectSystem
@@ -34,15 +35,16 @@ from settings import (
 )
 
 TOTAL_STARS = sum(row.count("*") for t in LEVEL_TEMPLATES.values() for row in t.layout)
+WINDOW_FLAGS = pygame.SCALED | pygame.RESIZABLE
 
 
 class Game:
     def __init__(self) -> None:
         pygame.init()
         # SCALED keeps the logical resolution at 960x640 while letting the OS
-        # scale the window (and fullscreen) to fit the monitor, preserving aspect.
+        # scale the resizable window and fullscreen while preserving game aspect.
         self.fullscreen = False
-        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SCALED)
+        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), WINDOW_FLAGS)
         pygame.display.set_caption("Bean on the Moon")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("consolas", 22)
@@ -51,6 +53,7 @@ class Game:
         self.mid = pygame.font.SysFont("consolas", 26, bold=True)
 
         self.assets = AssetLibrary()
+        self.audio = AudioManager()
         self.effects = EffectSystem()
         self.player = Player()
         self.camera = Camera(WINDOW_WIDTH, PLAY_HEIGHT)
@@ -60,12 +63,13 @@ class Game:
         self.gate_restored = False
         self.stars = 0
 
-        self.state = "title"      # title | play | win
+        self.state = "title"      # title | play | pause | win
         self.health = MAX_HEALTH
         self.hit_flash = 0.0
         self.message = ""
         self.banner = ""
         self.banner_time = 0.0
+        self.pause_buttons: dict[str, pygame.Rect] = {}
         self.start_time = time.perf_counter()
         self.win_time: float | None = None
         self.current_level: Level | None = None
@@ -82,6 +86,7 @@ class Game:
         self.effects.clear()
         self.set_banner(self.current_level.title, LEVEL_TEMPLATES[name].intro)
         self.message = LEVEL_TEMPLATES[name].intro
+        self.audio.play_music(name)
 
     def respawn(self) -> None:
         self.health = MAX_HEALTH
@@ -104,6 +109,10 @@ class Game:
                     running = False
                 elif event.type == pygame.KEYDOWN:
                     running = self.on_keydown(event.key)
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    running = self.on_mouse_down(event.pos)
+                elif event.type in (pygame.VIDEORESIZE, pygame.WINDOWRESIZED):
+                    self.on_resize(event)
             self.update(dt)
             self.draw()
         pygame.quit()
@@ -115,6 +124,12 @@ class Game:
         except pygame.error:
             pass  # some drivers/platforms don't support runtime toggling
 
+    def on_resize(self, event: pygame.event.Event) -> None:
+        # pygame.SCALED keeps the 960x640 game surface aspect-correct inside
+        # whatever window/fullscreen size the OS provides. Forcing the native
+        # window size here causes snap-back on manual resize and top-bar fullscreen.
+        return
+
     def on_keydown(self, key: int) -> bool:
         if key in (pygame.K_F11, pygame.K_f):
             self.toggle_fullscreen()
@@ -122,6 +137,12 @@ class Game:
         if key == pygame.K_ESCAPE:
             if self.fullscreen:
                 self.toggle_fullscreen()
+                return True
+            if self.state == "play":
+                self.state = "pause"
+                return True
+            if self.state == "pause":
+                self.state = "play"
                 return True
             return False
         if self.state == "title":
@@ -132,11 +153,51 @@ class Game:
             return True
         if self.state == "win":
             return True
+        if self.state == "pause":
+            if key in (pygame.K_RETURN, pygame.K_SPACE):
+                self.state = "play"
+            elif key in (pygame.K_q, pygame.K_BACKSPACE):
+                return False
+            elif key in (pygame.K_LEFT, pygame.K_MINUS):
+                self.audio.adjust_music_volume(-0.05)
+            elif key in (pygame.K_RIGHT, pygame.K_EQUALS, pygame.K_PLUS):
+                self.audio.adjust_music_volume(0.05)
+            elif key == pygame.K_a:
+                self.audio.adjust_sfx_volume(-0.05)
+                self.audio.play("star", 0.7)
+            elif key == pygame.K_s:
+                self.audio.adjust_sfx_volume(0.05)
+                self.audio.play("star", 0.7)
+            return True
         if key in (pygame.K_SPACE, pygame.K_LSHIFT, pygame.K_RSHIFT, pygame.K_j):
             if self.player.start_dash():
                 self.effects.burst(*self.player.center, DASH_COLOR, count=8, speed=120, life=0.3)
+                self.audio.play("dash")
         if key == pygame.K_e:
             self.try_interact()
+        return True
+
+    def on_mouse_down(self, pos: tuple[int, int]) -> bool:
+        if self.state != "pause":
+            return True
+        for name, rect in self.pause_buttons.items():
+            if not rect.collidepoint(pos):
+                continue
+            if name == "resume":
+                self.state = "play"
+            elif name == "quit":
+                return False
+            elif name == "music_down":
+                self.audio.adjust_music_volume(-0.05)
+            elif name == "music_up":
+                self.audio.adjust_music_volume(0.05)
+            elif name == "sfx_down":
+                self.audio.adjust_sfx_volume(-0.05)
+                self.audio.play("star", 0.7)
+            elif name == "sfx_up":
+                self.audio.adjust_sfx_volume(0.05)
+                self.audio.play("star", 0.7)
+            return True
         return True
 
     # ---------- update ----------
@@ -164,28 +225,37 @@ class Game:
         if result["stars"]:
             self.stars += result["stars"]
             self.effects.text(*self.player.center, "+1 star", STAR_COLOR)
+            self.audio.play("star")
         if result["health"]:
             self.health = min(MAX_HEALTH, self.health + 1)
             self.effects.text(*self.player.center, "+1 HP", (140, 245, 160))
             self.message = "Suit repaired. +1 integrity."
+            self.audio.play("health")
         if result["key"]:
             self.message = "Picked up a key."
             self.effects.text(*self.player.center, "Key", (255, 220, 110))
+            self.audio.play("key")
         if result["door"]:
             self.message = "The locked door swings open."
+            self.audio.play("door")
         if result["switch"] == "partial":
             self.message = "Switch online. Find the other one to drop the seal."
+            self.audio.play("switch")
         elif result["switch"] == "opened":
             self.message = "Both switches active -- the guardian's seal collapses!"
             self.camera.add_shake(5, 0.3)
+            self.audio.play("switch", 0.9)
         if result["enemy_killed"]:
             self.camera.add_shake(4, 0.2)
+            self.audio.play("enemy_down")
         if result["guardian_hit"]:
             self.camera.add_shake(5, 0.25)
+            self.audio.play("guardian_hit")
         if result["guardian_killed"]:
             self.camera.add_shake(12, 0.5)
             self.message = f"The {self.current_level.title} guardian is destroyed! The relic is yours to take."
             self.effects.text(*self.player.center, "GUARDIAN DOWN", (255, 200, 255))
+            self.audio.play("guardian_down", 0.9)
         if result["damage"]:
             self.hit_player(result["damage"])
 
@@ -197,6 +267,7 @@ class Game:
         self.hit_flash = 0.25
         self.camera.add_shake(8, 0.3)
         self.effects.burst(*self.player.center, (255, 120, 130), count=14, speed=200)
+        self.audio.play("hit")
         if self.health <= 0:
             self.respawn()
         else:
@@ -212,9 +283,11 @@ class Game:
         name = self.current_level.name
 
         if ch in PORTAL_DESTINATIONS and name == "hub":
+            self.audio.play("portal")
             self.load_level(PORTAL_DESTINATIONS[ch])
             return
         if ch == "H":
+            self.audio.play("portal")
             self.load_level("hub")
             return
         if ch == "R":
@@ -228,6 +301,7 @@ class Game:
             self.effects.ring(self.player.center[0], self.player.center[1], self.current_level.template.relic_color, count=26, speed=300)
             self.effects.text(*self.player.center, f"{self.current_level.title} relic!", TEXT_GOLD)
             self.camera.add_shake(6, 0.4)
+            self.audio.play("relic", 0.9)
             got = len(self.collected_relics)
             if got >= 3:
                 self.message = "All three relics gathered! Return to the hub and restore the Lunar Gate."
@@ -243,6 +317,7 @@ class Game:
                 self.message = "The Lunar Gate roars to life. The Warp Gate is now active!"
                 self.effects.ring(*self.player.center, (255, 226, 138), count=30, speed=320)
                 self.camera.add_shake(10, 0.5)
+                self.audio.play("gate", 0.9)
             else:
                 self.message = "The Lunar Gate is already restored."
             return
@@ -255,6 +330,8 @@ class Game:
             self.message = "The Warp Gate opens. Bean steps through, and goes home."
             self.effects.ring(*self.player.center, (255, 255, 255), count=40, speed=360)
             self.camera.add_shake(14, 0.6)
+            self.audio.stop_music()
+            self.audio.play("win", 0.9)
 
     # ---------- objective / hint text ----------
     def objective_text(self) -> str:
@@ -313,6 +390,8 @@ class Game:
             self.draw_banner()
         if self.state == "title":
             self.draw_title()
+        if self.state == "pause":
+            self.draw_pause()
         if self.state == "win":
             self.draw_win()
         pygame.display.flip()
@@ -353,7 +432,7 @@ class Game:
         self.screen.blit(obj, (22, row2))
 
         # Row 3: controls reference
-        ctrl = self.small.render("WASD move   E interact   Shift / Space dash   F fullscreen", True, TEXT_DIM)
+        ctrl = self.small.render("WASD move   E interact   Shift / Space dash   Esc pause   F fullscreen", True, TEXT_DIM)
         self.screen.blit(ctrl, (22, row3))
 
         # floating message just above the HUD
@@ -386,6 +465,56 @@ class Game:
         surf.set_alpha(int(255 * alpha))
         self.screen.blit(surf, surf.get_rect(center=(WINDOW_WIDTH // 2, 70)))
 
+    def draw_pause(self) -> None:
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((5, 7, 18, 215))
+        self.screen.blit(overlay, (0, 0))
+
+        panel = pygame.Rect(0, 0, 470, 390)
+        panel.center = (WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2)
+        pygame.draw.rect(self.screen, (18, 23, 42), panel, border_radius=18)
+        pygame.draw.rect(self.screen, UI_LINE, panel, width=2, border_radius=18)
+
+        title = self.big.render("PAUSED", True, TEXT_MAIN)
+        self.screen.blit(title, title.get_rect(center=(panel.centerx, panel.y + 54)))
+
+        self.pause_buttons = {}
+        music_pct = int(self.audio.music_volume * 100)
+        sfx_pct = int(self.audio.sfx_volume * 100)
+        self._draw_volume_row(panel.y + 115, "Music", music_pct, "music_down", "music_up")
+        self._draw_volume_row(panel.y + 175, "SFX", sfx_pct, "sfx_down", "sfx_up")
+
+        resume = pygame.Rect(panel.centerx - 145, panel.y + 250, 130, 46)
+        quit_btn = pygame.Rect(panel.centerx + 15, panel.y + 250, 130, 46)
+        self.pause_buttons["resume"] = resume
+        self.pause_buttons["quit"] = quit_btn
+        self._draw_button(resume, "Resume")
+        self._draw_button(quit_btn, "Quit")
+
+        hint = self.small.render("Esc/Enter resume   Left/Right music   A/S SFX   Q quit", True, TEXT_DIM)
+        self.screen.blit(hint, hint.get_rect(center=(panel.centerx, panel.bottom - 42)))
+
+    def _draw_volume_row(self, y: int, label: str, pct: int, down_name: str, up_name: str) -> None:
+        label_surf = self.font.render(label, True, TEXT_MAIN)
+        self.screen.blit(label_surf, (WINDOW_WIDTH // 2 - 170, y + 9))
+        down = pygame.Rect(WINDOW_WIDTH // 2 - 45, y, 42, 42)
+        up = pygame.Rect(WINDOW_WIDTH // 2 + 125, y, 42, 42)
+        self.pause_buttons[down_name] = down
+        self.pause_buttons[up_name] = up
+        self._draw_button(down, "-")
+        self._draw_button(up, "+")
+        value = self.font.render(f"{pct:3d}%", True, TEXT_GOLD)
+        self.screen.blit(value, value.get_rect(center=(WINDOW_WIDTH // 2 + 62, y + 21)))
+
+    def _draw_button(self, rect: pygame.Rect, text: str) -> None:
+        mx, my = pygame.mouse.get_pos()
+        hover = rect.collidepoint((mx, my))
+        color = (44, 55, 88) if hover else (31, 39, 68)
+        pygame.draw.rect(self.screen, color, rect, border_radius=10)
+        pygame.draw.rect(self.screen, UI_LINE, rect, width=2, border_radius=10)
+        label = self.font.render(text, True, TEXT_MAIN)
+        self.screen.blit(label, label.get_rect(center=rect.center))
+
     def draw_title(self) -> None:
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         overlay.fill((6, 8, 18, 220))
@@ -402,7 +531,7 @@ class Game:
             "",
             "Collect 3 relics, restore the Lunar Gate, open the Warp Gate.",
             "",
-            "F or F11: toggle fullscreen",
+            "Esc pauses during play. F or F11 toggles fullscreen.",
         ]
         for i, line in enumerate(lines):
             color = TEXT_GOLD if "DASH" in line else TEXT_DIM
