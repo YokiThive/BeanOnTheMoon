@@ -34,4 +34,25 @@ Drop generated PNG files into these paths so the game can load them automaticall
 - `tiles/eos/switch.png`
 - `tiles/eos/barrier.png`
 
+## Audio Files
+
+- `audio/music_hub.ogg`
+- `audio/music_selene.ogg`
+- `audio/music_nyx.ogg`
+- `audio/music_eos.ogg`
+- `audio/dash.wav`
+- `audio/star.wav`
+- `audio/health.wav`
+- `audio/key.wav`
+- `audio/switch.wav`
+- `audio/door.wav`
+- `audio/hit.wav`
+- `audio/enemy_down.wav`
+- `audio/guardian_hit.wav`
+- `audio/guardian_down.wav`
+- `audio/relic.wav`
+- `audio/gate.wav`
+- `audio/portal.wav`
+- `audio/win.wav`
+
 The game will still run if some files are missing. Missing assets fall back to the current placeholder drawing.
