@@ -1,4 +1,4 @@
-"""Particles and floating combat/score text -- the 'juice' layer."""
+# Particles and floating text
 from __future__ import annotations
 
 import math
@@ -51,7 +51,6 @@ class EffectSystem:
         self.texts: list[FloatingText] = []
         self._font = pygame.font.SysFont("consolas", 18, bold=True)
 
-    # --- spawners ---
     def burst(self, x: float, y: float, color: tuple[int, int, int], count: int = 14,
               speed: float = 220.0, life: float = 0.5, gravity: float = 0.0) -> None:
         for _ in range(count):
@@ -88,7 +87,6 @@ class EffectSystem:
     def text(self, x: float, y: float, text: str, color: tuple[int, int, int]) -> None:
         self.texts.append(FloatingText(x=x, y=y, text=text, color=color))
 
-    # --- lifecycle ---
     def update(self, dt: float) -> None:
         for p in self.particles:
             p.update(dt)

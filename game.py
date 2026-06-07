@@ -1,4 +1,3 @@
-"""Bean on the Moon -- main game loop, states, HUD and juice integration."""
 from __future__ import annotations
 
 import time
@@ -41,8 +40,6 @@ WINDOW_FLAGS = pygame.SCALED | pygame.RESIZABLE
 class Game:
     def __init__(self) -> None:
         pygame.init()
-        # SCALED keeps the logical resolution at 960x640 while letting the OS
-        # scale the resizable window and fullscreen while preserving game aspect.
         self.fullscreen = False
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), WINDOW_FLAGS)
         pygame.display.set_caption("Bean on the Moon")
@@ -72,11 +69,13 @@ class Game:
         self.pause_buttons: dict[str, pygame.Rect] = {}
         self.start_time = time.perf_counter()
         self.win_time: float | None = None
+        self.pause_total = 0.0
+        self.pause_start: float | None = None
         self.current_level: Level | None = None
 
         self.load_level("hub")
 
-    # ---------- level management ----------
+    # level management
     def load_level(self, name: str) -> None:
         self.current_level = Level(name, LEVEL_TEMPLATES[name], self.level_states[name], name in self.collected_relics)
         self.camera.resize_world(self.current_level.world_w, self.current_level.world_h)
@@ -99,7 +98,7 @@ class Game:
         self.banner_sub = subtitle
         self.banner_time = 2.4
 
-    # ---------- main loop ----------
+    # main loop
     def run(self) -> None:
         running = True
         while running:
@@ -122,13 +121,22 @@ class Game:
             pygame.display.toggle_fullscreen()
             self.fullscreen = not self.fullscreen
         except pygame.error:
-            pass  # some drivers/platforms don't support runtime toggling
+            pass
 
     def on_resize(self, event: pygame.event.Event) -> None:
-        # pygame.SCALED keeps the 960x640 game surface aspect-correct inside
-        # whatever window/fullscreen size the OS provides. Forcing the native
-        # window size here causes snap-back on manual resize and top-bar fullscreen.
         return
+
+    def _enter_pause(self) -> None:
+        if self.state == "pause":
+            return
+        self.state = "pause"
+        self.pause_start = time.perf_counter()
+
+    def _exit_pause(self) -> None:
+        if self.pause_start is not None:
+            self.pause_total += time.perf_counter() - self.pause_start
+            self.pause_start = None
+        self.state = "play"
 
     def on_keydown(self, key: int) -> bool:
         if key in (pygame.K_F11, pygame.K_f):
@@ -139,23 +147,25 @@ class Game:
                 self.toggle_fullscreen()
                 return True
             if self.state == "play":
-                self.state = "pause"
+                self._enter_pause()
                 return True
             if self.state == "pause":
-                self.state = "play"
+                self._exit_pause()
                 return True
             return False
         if self.state == "title":
             if key in (pygame.K_RETURN, pygame.K_SPACE):
                 self.state = "play"
                 self.start_time = time.perf_counter()
+                self.pause_total = 0.0
+                self.pause_start = None
                 self.message = "Reach a portal and press E to dive into a moon."
             return True
         if self.state == "win":
             return True
         if self.state == "pause":
             if key in (pygame.K_RETURN, pygame.K_SPACE):
-                self.state = "play"
+                self._exit_pause()
             elif key in (pygame.K_q, pygame.K_BACKSPACE):
                 return False
             elif key in (pygame.K_LEFT, pygame.K_MINUS):
@@ -184,7 +194,7 @@ class Game:
             if not rect.collidepoint(pos):
                 continue
             if name == "resume":
-                self.state = "play"
+                self._exit_pause()
             elif name == "quit":
                 return False
             elif name == "music_down":
@@ -200,7 +210,7 @@ class Game:
             return True
         return True
 
-    # ---------- update ----------
+    # update
     def update(self, dt: float) -> None:
         self.hit_flash = max(0.0, self.hit_flash - dt)
         self.banner_time = max(0.0, self.banner_time - dt)
@@ -333,7 +343,7 @@ class Game:
             self.audio.stop_music()
             self.audio.play("win", 0.9)
 
-    # ---------- objective / hint text ----------
+    # objective / hint text
     def objective_text(self) -> str:
         lvl = self.current_level
         name = lvl.name
@@ -371,7 +381,7 @@ class Game:
             return "Press E to warp home" if self.gate_restored else "Dormant -- restore the Lunar Gate"
         return None
 
-    # ---------- drawing ----------
+    # drawing
     def draw(self) -> None:
         self.screen.fill(BG_COLOR)
         play_area = self.screen.subsurface((0, 0, WINDOW_WIDTH, PLAY_HEIGHT))
@@ -404,7 +414,6 @@ class Game:
         row2 = y0 + 30
         row3 = y0 + 56
 
-        # Row 1: hearts, relics, stars, dash bar, location
         for i in range(MAX_HEALTH):
             cx = 22 + i * 26
             color = HEART_FULL if i < self.health else HEART_EMPTY
@@ -427,15 +436,12 @@ class Game:
         loc = self.small.render(self.current_level.title, True, TEXT_DIM)
         self.screen.blit(loc, (WINDOW_WIDTH - loc.get_width() - 16, y0))
 
-        # Row 2: current objective
         obj = self.font.render(self.objective_text(), True, TEXT_GOLD)
         self.screen.blit(obj, (22, row2))
 
-        # Row 3: controls reference
         ctrl = self.small.render("WASD move   E interact   Shift / Space dash   Esc pause   F fullscreen", True, TEXT_DIM)
         self.screen.blit(ctrl, (22, row3))
 
-        # floating message just above the HUD
         if self.message:
             msg = self.small.render(self.message, True, (255, 244, 200))
             mrect = msg.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - UI_HEIGHT - 16))
@@ -491,8 +497,10 @@ class Game:
         self._draw_button(resume, "Resume")
         self._draw_button(quit_btn, "Quit")
 
-        hint = self.small.render("Esc/Enter resume   Left/Right music   A/S SFX   Q quit", True, TEXT_DIM)
-        self.screen.blit(hint, hint.get_rect(center=(panel.centerx, panel.bottom - 42)))
+        hint1 = self.small.render("Left/Right: Music     A/S: SFX", True, TEXT_DIM)
+        hint2 = self.small.render("Esc/Enter: Resume     Q: Quit", True, TEXT_DIM)
+        self.screen.blit(hint1, hint1.get_rect(center=(panel.centerx, panel.bottom - 52)))
+        self.screen.blit(hint2, hint2.get_rect(center=(panel.centerx, panel.bottom - 28)))
 
     def _draw_volume_row(self, y: int, label: str, pct: int, down_name: str, up_name: str) -> None:
         label_surf = self.font.render(label, True, TEXT_MAIN)
@@ -547,7 +555,7 @@ class Game:
         title = self.big.render("BEAN MADE IT HOME", True, TEXT_MAIN)
         self.screen.blit(title, title.get_rect(center=(WINDOW_WIDTH // 2, 200)))
         end = self.win_time if self.win_time is not None else time.perf_counter()
-        elapsed = int(end - self.start_time)
+        elapsed = int(end - self.start_time - self.pause_total)
         stats = [
             f"Time: {elapsed // 60:02}:{elapsed % 60:02}",
             f"Relics: {len(self.collected_relics)}/3",

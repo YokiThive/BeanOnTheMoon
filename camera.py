@@ -1,4 +1,4 @@
-"""Smooth-follow camera with map-bounds clamping and screen shake."""
+# Camera with smooth follow and screen shake
 from __future__ import annotations
 
 import random
@@ -23,7 +23,6 @@ class Camera:
 
     def _clamp(self, value: float, span: int, world: int) -> float:
         if world <= span:
-            # Center small maps inside the viewport.
             return (world - span) / 2
         return max(0.0, min(value, world - span))
 
@@ -32,7 +31,6 @@ class Camera:
         self.y = self._clamp(target_y - PLAY_HEIGHT / 2, PLAY_HEIGHT, self.world_height)
 
     def tick(self, dt: float) -> None:
-        """Advance time-based effects (shake) -- safe to call every frame."""
         if self.shake_time > 0:
             self.shake_time = max(0.0, self.shake_time - dt)
 

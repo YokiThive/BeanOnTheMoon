@@ -1,6 +1,5 @@
-"""Shared constants for Bean on the Moon."""
-
-# --- Display ---
+# Game constants
+# Display
 WINDOW_WIDTH = 960
 WINDOW_HEIGHT = 640
 UI_HEIGHT = 96
@@ -8,22 +7,21 @@ PLAY_WIDTH = WINDOW_WIDTH
 PLAY_HEIGHT = WINDOW_HEIGHT - UI_HEIGHT
 FPS = 60
 
-# --- World ---
+# World
 TILE_SIZE = 48
 
-# --- Player ---
+# Player
 PLAYER_SIZE = 34
 PLAYER_SPEED = 235.0
 MAX_HEALTH = 5
 DAMAGE_COOLDOWN = 0.9
 
-# Dash: short burst that grants i-frames and damages enemies on contact.
 DASH_SPEED = 720.0
 DASH_DURATION = 0.16
 DASH_COOLDOWN = 0.65
 DASH_IFRAMES = 0.22
 
-# --- Enemies ---
+# Enemies
 CHASER_SPEED = 130.0
 CHASER_AGGRO = 230.0
 CHASER_HP = 1
@@ -34,11 +32,11 @@ GUARDIAN_HP = 5
 GUARDIAN_CHARGE_SPEED = 360.0
 ENEMY_HIT_COOLDOWN = 0.35
 
-# --- Camera ---
+# Camera
 CAMERA_LERP = 8.0
-SHAKE_SCALE = 0.35   # global multiplier for screen shake (lower = calmer)
+SHAKE_SCALE = 0.35
 
-# --- Colors ---
+# Colors
 BG_COLOR = (8, 9, 18)
 PLAYER_COLOR = (112, 214, 146)
 VISOR_COLOR = (225, 243, 255)

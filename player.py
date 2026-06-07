@@ -1,4 +1,4 @@
-"""Bean: top-down movement plus a dash that grants i-frames and hits enemies."""
+# Player
 from __future__ import annotations
 
 import math
@@ -33,14 +33,13 @@ class Player:
         self.dash_dir = pygame.Vector2(0, 1)
         self.moving = False
 
-    # --- positioning ---
     def spawn_at(self, tile_x: int, tile_y: int) -> None:
         self.rect.center = (
             tile_x * TILE_SIZE + TILE_SIZE / 2,
             tile_y * TILE_SIZE + TILE_SIZE / 2,
         )
         self.dash_time = 0.0
-        self.invuln = max(self.invuln, 0.6)  # brief grace on (re)spawn
+        self.invuln = max(self.invuln, 0.6)
 
     @property
     def center(self) -> tuple[float, float]:
@@ -72,7 +71,6 @@ class Player:
     def hurt_grace(self, seconds: float) -> None:
         self.invuln = max(self.invuln, seconds)
 
-    # --- per-frame ---
     def _move(self, dx: float, dy: float, level: "Level") -> None:
         if dx:
             self.rect.x += dx
@@ -114,7 +112,6 @@ class Player:
                 vec = self.facing * PLAYER_SPEED
                 self._move(vec.x * dt, vec.y * dt, level)
 
-    # --- render ---
     def draw(self, screen: pygame.Surface, camera, assets: "AssetLibrary") -> None:
         r = camera.apply(self.rect)
 

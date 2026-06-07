@@ -1,4 +1,4 @@
-"""Level state, parsing, entity management, and camera-aware rendering."""
+# Level loading, entity management, and rendering
 from __future__ import annotations
 
 import math
@@ -55,9 +55,8 @@ class Level:
         self._apply_state(relic_collected)
         self._spawn_entities()
 
-    # ---------- setup ----------
     def _apply_state(self, relic_collected: bool) -> None:
-        # Restore previously pressed switches as pressed markers.
+        # Restore previously pressed switches as pressed markers
         for (tx, ty) in self.state["switches"]:
             if self._in_bounds(tx, ty) and self.tiles[ty][tx] == "s":
                 self.tiles[ty][tx] = "o"
@@ -91,7 +90,6 @@ class Level:
                 if ch == old:
                     row[i] = new
 
-    # ---------- helpers ----------
     @property
     def title(self) -> str:
         return self.template.title
@@ -141,7 +139,6 @@ class Level:
     def relic_unlocked(self) -> bool:
         return self.state["guardian_dead"]
 
-    # ---------- per-frame update ----------
     def update(self, dt: float, player: "Player", effects: "EffectSystem") -> dict:
         self.anim += dt
         result = {
@@ -240,7 +237,6 @@ class Level:
     def _tile_center(self, tx: int, ty: int) -> tuple[float, float]:
         return tx * TILE_SIZE + TILE_SIZE / 2, ty * TILE_SIZE + TILE_SIZE / 2
 
-    # ---------- rendering ----------
     def _asset_key(self, ch: str, gate_restored: bool) -> str | None:
         if ch == "#":
             return f"{self.name}.wall"

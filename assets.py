@@ -1,4 +1,4 @@
-"""Image loading with graceful fallback when art is missing."""
+# Asset loading
 from __future__ import annotations
 
 from pathlib import Path

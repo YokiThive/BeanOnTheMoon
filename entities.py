@@ -1,8 +1,4 @@
-"""Enemies: chasers, patrollers, and moon guardians (mini-bosses).
-
-Combat verb: Bean's dash deals contact damage and is invulnerable.
-Touching an enemy while NOT dashing hurts Bean instead.
-"""
+# Enemy classes
 from __future__ import annotations
 
 import math
@@ -29,7 +25,6 @@ from settings import (
 
 
 def _move_axis(rect: pygame.FRect, dx: float, dy: float, level) -> bool:
-    """Move on one axis; revert and report a wall hit if it collides."""
     rect.x += dx
     rect.y += dy
     pts = [
@@ -64,7 +59,6 @@ class Enemy:
         return self.rect.centerx, self.rect.centery
 
     def take_hit(self, damage: int = 1) -> bool:
-        """Return True if this hit killed the enemy."""
         if self.hit_cd > 0:
             return False
         self.hp -= damage
@@ -144,7 +138,6 @@ class Patroller(Enemy):
     def update(self, dt: float, player_center, level) -> None:
         self._tick_timers(dt)
         speed = PATROLLER_SPEED
-        # Slight nudge toward player when close, otherwise straight patrol.
         px, py = player_center
         if math.hypot(px - self.rect.centerx, py - self.rect.centery) < 170:
             speed *= 1.4
@@ -195,7 +188,6 @@ class Guardian(Enemy):
                 self.state_time = 0.7
 
         elif self.state == "telegraph":
-            # Lock onto the player, then charge.
             dx, dy = px - self.rect.centerx, py - self.rect.centery
             dist = math.hypot(dx, dy) or 1
             self.charge_dir = pygame.Vector2(dx / dist, dy / dist)
@@ -212,7 +204,7 @@ class Guardian(Enemy):
                 self.state = "recover"
                 self.state_time = 0.6
 
-        else:  # recover -- vulnerable window, stands still
+        else:
             if self.state_time <= 0:
                 self.state = "chase"
                 self.state_time = random.uniform(1.6, 2.6)
@@ -226,7 +218,6 @@ class Guardian(Enemy):
         if self.flash > 0:
             col = (255, 255, 255)
         elif self.state == "telegraph":
-            # Pulse bright as a wind-up tell.
             t = 0.5 + 0.5 * math.sin(self.anim * 26)
             col = (int(220 + 35 * t), int(120 + 80 * t), 255)
         elif self.state == "recover":
